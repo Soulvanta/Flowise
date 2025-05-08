@@ -3,20 +3,11 @@ FROM node:20-alpine AS build
 
 USER root
 
-# Install build dependencies
-RUN apk add --no-cache git python3 py3-pip make g++ build-base
+# Skip downloading Chrome for Puppeteer (saves build time)
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
-# Set working directory
-WORKDIR /app
-
-# Copy local repo source code
-COPY . .
-
-# Install dependencies using npm
-RUN npm install
-
-# Build the Flowise app
-RUN npm run build
+# Install latest Flowise globally (specific version can be set: flowise@1.0.0)
+RUN npm install -g flowise
 
 # Stage 2: Runtime stage
 FROM node:20-alpine
@@ -24,16 +15,11 @@ FROM node:20-alpine
 # Install runtime dependencies
 RUN apk add --no-cache chromium git python3 py3-pip make g++ build-base cairo-dev pango-dev curl
 
+# Set the environment variable for Puppeteer to find Chromium
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Set app working directory
-WORKDIR /app
+# Copy Flowise from the build stage
+COPY --from=build /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=build /usr/local/bin /usr/local/bin
 
-# Copy built app from build stage
-COPY --from=build /app /app
-
-# Expose default Flowise port
-EXPOSE 3000
-
-# Start the app
-CMD ["npm", "start"]
+ENTRYPOINT ["flowise", "start"]
